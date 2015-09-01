@@ -27,38 +27,48 @@
 
 package hardware
 
-object Wire {
-  val trueWire = new Wire {
-    override def getSignal: Boolean = true
-    override def setSignal(signal: Boolean): Unit = {}
-    override def addAction(a: Action): Unit = {}
+/**
+ * Created by Elliot on 01/09/2015.
+ */
+object Z80 {
+
+  import Components._
+
+  // http://righto.com/files/z80-alu-schematic.pdf
+  def ALUCore(op1: Wire, op2: Wire, RSV: Bus, cin: Wire, cout: Wire, result: Wire)(implicit sim: Simulation): Unit = {
+
+    val i1, i2, i3 = new Wire
+    val internalCarry = new Wire
+
+    orGate(op1, op2, i1)
+    andGate(op1, op2, i2)
+
+    andGate(cin, i1, i3)
+    nOrGate(i3, i2, RSV(1), internalCarry)
+
+    nOrGate(RSV(0), internalCarry, cout)
+
+    val i4, i5, i6, i7, i8 = new Wire
+
+    andGate(cin, op2, op1, i4)
+    orGate(cin, op2, op1, i5)
+    orGate(RSV(2), internalCarry, i6)
+    andGate(i5, i6, i7)
+    nOrGate(i4, i7, i8)
+
+    inverter(i8, result)
   }
 
-  val falseWire = new Wire {
-    override def getSignal: Boolean = false
-    override def setSignal(signal: Boolean): Unit = {}
-    override def addAction(a: Action): Unit = {}
+  def ALU4bit(op1: Bus, op2: Bus, RSV: Bus, cin: Wire, cout: Wire, result: Bus)(implicit sim: Simulation): Unit = {
+    assert(op1.width == 4)
+    assert(op2.width == 4)
+    assert(RSV.width == 3)
+    assert(result.width == 4)
+
+    val i1, i2, i3 = new Wire
+    ALUCore(op1(0), op2(0), RSV, cin, i1,   result(0))
+    ALUCore(op1(1), op2(1), RSV, i1,  i2,   result(1))
+    ALUCore(op1(2), op2(2), RSV, i2,  i3,   result(2))
+    ALUCore(op1(3), op2(3), RSV, i2,  cout, result(3))
   }
 }
-
-class Wire {
-  private var sigVal: Boolean = false
-  private var actions: List[Action] = List()
-
-  def apply(): Boolean = getSignal
-  def apply(signal: Boolean) = setSignal(signal)
-
-  def getSignal: Boolean = sigVal
-
-  def setSignal(signal: Boolean): Unit = {
-    if (signal != sigVal) {
-      sigVal = signal
-      actions.foreach(action => action())
-    }
-  }
-
-  def addAction(a: Action): Unit = {
-    actions = a :: actions; a()
-  }
-}
-
